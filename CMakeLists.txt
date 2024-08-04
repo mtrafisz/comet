@@ -18,7 +18,6 @@ set (COMET_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_include_directories (${PROJECT_NAME} PUBLIC ${COMET_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} httpc)
 
-# for each .c file in examples, create an executable and link against comet
 file (GLOB EXAMPLES "examples/*.c")
 foreach (EXAMPLE ${EXAMPLES})
     get_filename_component (EXAMPLE_NAME ${EXAMPLE} NAME_WE)
