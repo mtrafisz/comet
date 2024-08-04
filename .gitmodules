@@ -1,0 +1,3 @@
+[submodule "third-party/httpc"]
+	path = third-party/httpc
+	url = https://github.com/mtrafisz/httpc.git
