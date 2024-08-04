@@ -8,8 +8,18 @@
 #include <stdint.h>
 #include <stddef.h>
 
-typedef HttpcRequest* (*middleware_func)(HttpcRequest*);
-typedef HttpcResponse* (*handler_func)(HttpcRequest*);
+typedef struct {
+    char* key;
+    char* value;
+} UrlParam;
+
+typedef struct {
+    UrlParam* params;
+    size_t num_params;
+} UrlParams;
+
+typedef HttpcRequest* (*middleware_func)(HttpcRequest*, UrlParams*);
+typedef HttpcResponse* (*handler_func)(HttpcRequest*, UrlParams*);
 
 typedef struct {
     char* route;

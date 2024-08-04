@@ -120,6 +120,100 @@ HttpcRequest* router_read_next_request(CometRouter* router) {
     return req;
 }
 
+char** split_string_by_delim(const char* str, const char* delim, size_t* num_tokens) {
+    char* str_copy = strdup(str);
+    if (str_copy == NULL) {
+        return NULL;
+    }
+
+    char** tokens = malloc(1 * sizeof(char*));
+
+    size_t count = 0;
+    char* token = strtok(str_copy, delim);
+
+    while (token != NULL) {
+        tokens = realloc(tokens, (count + 1) * sizeof(char*));
+        if (tokens == NULL) {
+            free(str_copy);
+            return NULL;
+        }
+
+        tokens[count] = strdup(token);
+        if (tokens[count] == NULL) {
+            for (size_t i = 0; i < count; i++) {
+                free(tokens[i]);
+            }
+            free(tokens);
+            free(str_copy);
+            return NULL;
+        }
+
+        count++;
+        token = strtok(NULL, delim);
+    }
+
+    free(str_copy);
+    *num_tokens = count;
+    return tokens;
+}
+
+bool extract_url_params(const char *route_pattern_s, const char *actual_url_s, UrlParams *params) {
+    bool result = true;
+    
+    size_t num_route_tokens;
+    char** route_tokens = split_string_by_delim(route_pattern_s, "/", &num_route_tokens);
+    if (route_tokens == NULL) {
+        return false;
+    }
+
+    size_t num_url_tokens;
+    char** url_tokens = split_string_by_delim(actual_url_s, "/", &num_url_tokens);
+    if (url_tokens == NULL) {
+        free(route_tokens);
+        return false;
+    }
+
+    if (num_route_tokens != num_url_tokens) {
+        result = false;
+        goto cleanup;
+    }
+
+    for (size_t i = 0; i < num_route_tokens; i++) {
+        if (route_tokens[i][0] == '{' && route_tokens[i][strlen(route_tokens[i]) - 1] == '}') {
+            char *param_name = strndup(route_tokens[i] + 1, strlen(route_tokens[i]) - 2);
+            char *param_value = strdup(url_tokens[i]);
+
+            UrlParam *new_params = realloc(params->params, (params->num_params + 1) * sizeof(UrlParam));
+            if (new_params == NULL) {
+                free(param_name);
+                free(param_value);
+                
+                result = false;
+                goto cleanup;
+            }
+            params->params = new_params;
+
+            params->params[params->num_params].key = param_name;
+            params->params[params->num_params].value = param_value;
+            params->num_params++;
+        } else if (strcmp(route_tokens[i], url_tokens[i]) != 0) {
+            result = false;
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    for (size_t i = 0; i < num_route_tokens; i++) {
+        free(route_tokens[i]);
+    }
+    free(route_tokens);
+    for (size_t i = 0; i < num_url_tokens; i++) {
+        free(url_tokens[i]);
+    }
+    free(url_tokens);
+    return result;
+}
+
 void router_start(CometRouter* router) {
     if (!router) {
         log_message(LOG_ERROR, "Router is NULL");
@@ -138,17 +232,23 @@ void router_start(CometRouter* router) {
         for (size_t i = 0; i < router->num_routes; i++) {
             CometRoute* route = &router->routes[i];
             
-            if (strcmp(req->url, route->route) == 0 && req->method == route->method) {
+            UrlParams params = {0};
+            if (extract_url_params(route->route, req->url, &params)) {
                 for (size_t j = 0; j < route->num_middleware; j++) {
-                    req = route->middleware_chain[j](req);
+                    req = route->middleware_chain[j](req, &params);
                 }
 
-                res = route->handler(req);
+                res = route->handler(req, &params);
                 if (res == NULL) {
                     res = httpc_response_new("Internal Server Error", 500);
                     httpc_response_set_body(res, "500 Internal Server Error", 26);
                 }
             }
+            for (size_t j = 0; j < params.num_params; j++) {
+                free(params.params[j].key);
+                free(params.params[j].value);
+            }
+            if (params.params) free(params.params);
         }
 
         if (res == NULL) {
