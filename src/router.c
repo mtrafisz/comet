@@ -32,11 +32,11 @@ HttpcResponse* add_cors_headers(HttpcResponse* res, CometCorsConfig* config) {
         httpc_add_header_v(&res->headers, "Access-Control-Allow-Credentials", "true");
     
     }
-    // httpc_add_header_f(&res->headers, "Access-Control-Max-Age", "%d", config->max_age); // todo?
+    httpc_add_header_f(&res->headers, "Access-Control-Max-Age", "%d", config->max_age);
 
-    char max_age_str[16];
-    snprintf(max_age_str, sizeof(max_age_str), "%d", config->max_age);
-    httpc_add_header_v(&res->headers, "Access-Control-Max-Age", max_age_str);
+    // char max_age_str[16];
+    // snprintf(max_age_str, sizeof(max_age_str), "%d", config->max_age);
+    // httpc_add_header_v(&res->headers, "Access-Control-Max-Age", max_age_str);
 
     return res;
 }
