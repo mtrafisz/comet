@@ -5,4 +5,4 @@ Written 100% in C.
 ## WIP
 
 ## Problems
-- Thing doesn't work on firefox, it needs the request sent twice? (I think it's a problem with the headers)
+- Thing doesn't work on firefox, it needs the request sent twice?
