@@ -33,7 +33,7 @@ typedef struct {
     NetSocket remote_sockfd;
 } NetContext;
 
-NetContext *netctx_init(uint16_t port);
+bool netctx_init(NetContext **out_ctx, uint16_t port);
 NetSocket netctx_get_next_connection(NetContext *ctx);
 void netctx_close_current_connection(NetContext *ctx);
 void netctx_deinit(NetContext *ctx);

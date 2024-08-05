@@ -25,6 +25,7 @@ typedef SOCKET NetSocket;
 #include <string.h>
 #include <sys/time.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 
 typedef int NetSocket;
 
@@ -56,35 +57,34 @@ struct sockaddr_in netaddr_to_sockaddr(NetAddress addr) {
     return ret;
 }
 
-NetContext *netctx_init(uint16_t port) {
+bool netctx_init(NetContext **out_ctx, uint16_t port) {
+    if (!out_ctx || !*out_ctx) {
+        log_message(LOG_ERROR, "Attempted to initialize NetContext with NULL output pointer");
+        return false;
+    }
+
 #ifdef _WIN32
     WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
         log_message(LOG_ERROR, "Failed to initialize Winsock: %s", GET_ERROR_STR());
-        return NULL;
+        return false;
     }
 #endif
 
-    NetContext *ctx = malloc(sizeof(NetContext));
-    if (ctx == NULL) {
-        log_message(LOG_ERROR, "Failed to allocate memory for NetContext");
-        return NULL;
-    }
+    NetContext* ctx = *out_ctx;
 
     ctx->local_addr.ip = INADDR_ANY;
     ctx->local_addr.port = htons(port);
     ctx->local_sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (ctx->local_sockfd == SOCKET_ERROR) {
         log_message(LOG_ERROR, "Failed to create socket: %s", GET_ERROR_STR());
-        free(ctx);
-        return NULL;
+        return false;
     }
 
     struct sockaddr_in local_sockaddr = netaddr_to_sockaddr(ctx->local_addr);
     if (bind(ctx->local_sockfd, (struct sockaddr *)&local_sockaddr, sizeof(local_sockaddr)) == SOCKET_ERROR) {
         log_message(LOG_ERROR, "Failed to bind socket: %s", GET_ERROR_STR());
-        free(ctx);
-        return NULL;
+        return false;
     }
 
 #ifdef _WIN32
@@ -103,18 +103,36 @@ NetContext *netctx_init(uint16_t port) {
         goto error;
     }
 
+#ifdef _WIN32
+    u_long mode = 1;
+    if (ioctlsocket(ctx->local_sockfd, FIONBIO, &mode) == SOCKET_ERROR) {
+        log_message(LOG_ERROR, "Failed to set socket to non-blocking: %s", GET_ERROR_STR());
+        goto error;
+    }
+#else
+    int flags = fcntl(ctx->local_sockfd, F_GETFL, 0);
+    if (flags == -1) {
+        log_message(LOG_ERROR, "Failed to get socket flags: %s", GET_ERROR_STR());
+        goto error;
+    }
+    if (fcntl(ctx->local_sockfd, F_SETFL, flags | O_NONBLOCK) == -1) {
+        log_message(LOG_ERROR, "Failed to set socket to non-blocking: %s", GET_ERROR_STR());
+        goto error;
+    }
+#endif
+
     if (listen(ctx->local_sockfd, 10) == SOCKET_ERROR) {
         log_message(LOG_ERROR, "Failed to listen on socket: %s", GET_ERROR_STR());
         goto error;
     }
 
     log_message(LOG_INFO, "Listening on port %d", port);
-    return ctx;
+    
+    return true;
 error:
     SHUTDOWN_SOCKET(ctx->local_sockfd);
     CLOSE_SOCKET(ctx->local_sockfd);
-    free(ctx);
-    return NULL;
+    return false;
 }
 
 NetSocket netctx_get_next_connection(NetContext *ctx) {
@@ -126,7 +144,7 @@ NetSocket netctx_get_next_connection(NetContext *ctx) {
             return SOCKET_ERROR;
         }
 
-        log_message(LOG_ERROR, "Failed to accept connection: %s", GET_ERROR_STR());
+        log_message(LOG_ERROR, "Failed to accept connection: (%d) %s", errno, GET_ERROR_STR());
         return SOCKET_ERROR;
     }
 
@@ -159,7 +177,6 @@ void netctx_deinit(NetContext *ctx) {
         SHUTDOWN_SOCKET(ctx->local_sockfd);
         CLOSE_SOCKET(ctx->local_sockfd);
     }
-    free(ctx);
 #ifdef _WIN32
     WSACleanup();
 #endif

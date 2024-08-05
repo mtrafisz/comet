@@ -47,9 +47,13 @@ int main(void) {
 
     router = router_init(8080);
 
+    CometCorsConfig cors_config = COMET_CORS_DEFAULT_CONFIG;
+    cors_config.allowed_methods = "GET";
+    router_set_cors_policy(router, cors_config);
+
     router_add_route(router, "/", HTTPC_GET, hello_world_handler);
-    router_add_route(router, "/{name}/hello", HTTPC_GET, greeting_handler);
-    router_add_route(router, "/{name}/bye", HTTPC_GET, farewell_handler);
+    router_add_route(router, "/hello/{name}", HTTPC_GET, greeting_handler);
+    router_add_route(router, "/{name}/bye", HTTPC_GET, farewell_handler);    
 
     for (size_t i = 0; i < router->num_routes; i++) {
         router_add_middleware(router, i, logging_middleware);

@@ -3,10 +3,64 @@
 #include "include/logger.h"
 
 #include <signal.h>
+#include <unistd.h>
+
+void no_connection_timeout() {
+#ifndef _WIN32
+    usleep(10000);
+#else
+    Sleep(10);
+#endif
+}
+
+const CometCorsConfig COMET_CORS_DEFAULT_CONFIG = {
+    .allowed_origins = "*",
+    .allowed_methods = "GET, POST, PUT, DELETE, OPTIONS",
+    .allowed_headers = "Content-Type, Authorization",
+    .exposed_headers = "",
+    .allow_credentials = false,
+    .max_age = 600,
+};
+
+HttpcResponse* add_cors_headers(HttpcResponse* res, CometCorsConfig* config) {
+    httpc_add_header_v(&res->headers, "Access-Control-Allow-Origin", config->allowed_origins);
+    httpc_add_header_v(&res->headers, "Access-Control-Allow-Methods", config->allowed_methods);
+    httpc_add_header_v(&res->headers, "Access-Control-Allow-Headers", config->allowed_headers);
+    httpc_add_header_v(&res->headers, "Access-Control-Expose-Headers", config->exposed_headers);
+    
+    if (config->allow_credentials) {
+        httpc_add_header_v(&res->headers, "Access-Control-Allow-Credentials", "true");
+    
+    }
+    // httpc_add_header_f(&res->headers, "Access-Control-Max-Age", "%d", config->max_age); // todo?
+
+    char max_age_str[16];
+    snprintf(max_age_str, sizeof(max_age_str), "%d", config->max_age);
+    httpc_add_header_v(&res->headers, "Access-Control-Max-Age", max_age_str);
+
+    return res;
+}
+
+bool router_set_cors_policy(CometRouter* router, CometCorsConfig config) {
+    if (!router) {
+        log_message(LOG_ERROR, "Router is NULL");
+        return false;
+    }
+
+    router->cors_config = config;
+    return true;
+}
 
 HttpcResponse* default_not_found_handler(HttpcRequest* req) {
     HttpcResponse* res = httpc_response_new("Not Found", 404);
     httpc_response_set_body(res, "404 Not Found", 13);
+    httpc_add_header_v(&res->headers, "Content-Type", "text/plain");
+    return res;
+}
+
+HttpcResponse* default_not_allowed_handler(HttpcRequest* req) {
+    HttpcResponse* res = httpc_response_new("Method Not Allowed", 405);
+    httpc_response_set_body(res, "405 Method Not Allowed", 22);
     httpc_add_header_v(&res->headers, "Content-Type", "text/plain");
     return res;
 }
@@ -18,7 +72,8 @@ CometRouter* router_init(uint16_t port) {
         return NULL;
     }
 
-    router->ctx = netctx_init(port);
+    router->ctx = malloc(sizeof(NetContext));
+    netctx_init(&router->ctx, port);
     if (router->ctx == NULL) {
         free(router);
         return NULL;
@@ -27,6 +82,7 @@ CometRouter* router_init(uint16_t port) {
     router->num_routes = 0;
     router->routes = NULL;
     router->running = false;
+    router->cors_config = COMET_CORS_DEFAULT_CONFIG;
     
     log_message(LOG_INFO, "Router has been initialized");
 
@@ -226,10 +282,13 @@ void router_start(CometRouter* router) {
         HttpcResponse* res = NULL;
         HttpcRequest* req = router_read_next_request(router);
         if (req == NULL) {
+            no_connection_timeout();
             continue;
         }
 
-        for (size_t i = 0; i < router->num_routes; i++) {
+        bool found_route = false;
+
+        for (size_t i = 0; i < router->num_routes && !found_route; i++) {
             CometRoute* route = &router->routes[i];
             
             UrlParams params = {0};
@@ -238,10 +297,29 @@ void router_start(CometRouter* router) {
                     req = route->middleware_chain[j](req, &params);
                 }
 
-                res = route->handler(req, &params);
-                if (res == NULL) {
-                    res = httpc_response_new("Internal Server Error", 500);
-                    httpc_response_set_body(res, "500 Internal Server Error", 26);
+                if (req->method == HTTPC_OPTIONS) {
+                    if (res != NULL) {
+                        httpc_response_free(res);
+                    }
+
+                    res = httpc_response_new("OK", 200);
+
+                    found_route = true;
+                } else if (req->method != route->method) {
+                    if (res == NULL) res = default_not_allowed_handler(req);
+                    continue;
+                } else {
+                    if (res != NULL) {
+                        httpc_response_free(res);
+                    }
+
+                    res = route->handler(req, &params);
+                    if (res == NULL) {
+                        res = httpc_response_new("Internal Server Error", 500);
+                        httpc_response_set_body(res, "500 Internal Server Error", 26);
+                    }
+
+                    found_route = true;
                 }
             }
             for (size_t j = 0; j < params.num_params; j++) {
@@ -254,6 +332,8 @@ void router_start(CometRouter* router) {
         if (res == NULL) {
             res = default_not_found_handler(req);
         }
+
+        res = add_cors_headers(res, &router->cors_config);
 
         size_t response_len = 0;
         char* response_str = httpc_response_to_string(res, &response_len);
@@ -285,6 +365,7 @@ void router_deinit(CometRouter* router) {
 
     router->running = false;
     netctx_deinit(router->ctx);
+    free(router->ctx);
 
     for (size_t i = 0; i < router->num_routes; i++) {
         free(router->routes[i].route);
