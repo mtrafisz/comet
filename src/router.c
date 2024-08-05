@@ -22,21 +22,20 @@ const CometCorsConfig COMET_CORS_DEFAULT_CONFIG = {
     .max_age = 600,
 };
 
-HttpcResponse* add_cors_headers(HttpcResponse* res, CometCorsConfig* config) {
-    httpc_add_header_v(&res->headers, "Access-Control-Allow-Origin", config->allowed_origins);
-    httpc_add_header_v(&res->headers, "Access-Control-Allow-Methods", config->allowed_methods);
-    httpc_add_header_v(&res->headers, "Access-Control-Allow-Headers", config->allowed_headers);
-    httpc_add_header_v(&res->headers, "Access-Control-Expose-Headers", config->exposed_headers);
-    
-    if (config->allow_credentials) {
-        httpc_add_header_v(&res->headers, "Access-Control-Allow-Credentials", "true");
-    
+void add_header_if_value_not_empty(HttpcHeader* headers, const char* key, const char* value) {
+    if (value[0] != '\0') {
+        httpc_add_header_v(headers, key, value);
     }
-    httpc_add_header_f(&res->headers, "Access-Control-Max-Age", "%d", config->max_age);
+}
 
-    // char max_age_str[16];
-    // snprintf(max_age_str, sizeof(max_age_str), "%d", config->max_age);
-    // httpc_add_header_v(&res->headers, "Access-Control-Max-Age", max_age_str);
+HttpcResponse* add_cors_headers(HttpcResponse* res, CometCorsConfig* config) {
+    add_header_if_value_not_empty(&res->headers, "Access-Control-Allow-Origin", config->allowed_origins);
+    add_header_if_value_not_empty(&res->headers, "Access-Control-Allow-Methods", config->allowed_methods);
+    add_header_if_value_not_empty(&res->headers, "Access-Control-Allow-Headers", config->allowed_headers);
+    add_header_if_value_not_empty(&res->headers, "Access-Control-Expose-Headers", config->exposed_headers);
+
+    httpc_add_header_v(&res->headers, "Access-Control-Allow-Credentials", config->allow_credentials ? "true" : "false");
+    httpc_add_header_f(&res->headers, "Access-Control-Max-Age", "%d", config->max_age);
 
     return res;
 }
@@ -73,8 +72,8 @@ CometRouter* router_init(uint16_t port) {
     }
 
     router->ctx = malloc(sizeof(NetContext));
-    netctx_init(&router->ctx, port);
-    if (router->ctx == NULL) {
+    if (!netctx_init(&router->ctx, port) || router->ctx == NULL) {
+        log_message(LOG_ERROR, "Failed to initialize network context");
         free(router);
         return NULL;
     }
@@ -239,7 +238,7 @@ bool extract_url_params(const char *route_pattern_s, const char *actual_url_s, U
             char *param_name = strndup(route_tokens[i] + 1, strlen(route_tokens[i]) - 2);
             char *param_value = strdup(url_tokens[i]);
 
-            UrlParam *new_params = realloc(params->params, (params->num_params + 1) * sizeof(UrlParam));
+            Param *new_params = realloc(params->params, (params->num_params + 1) * sizeof(Param));
             if (new_params == NULL) {
                 free(param_name);
                 free(param_value);

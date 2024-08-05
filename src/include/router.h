@@ -11,10 +11,10 @@
 typedef struct {
     char* key;
     char* value;
-} UrlParam;
+} Param;
 
 typedef struct {
-    UrlParam* params;
+    Param* params;
     size_t num_params;
 } UrlParams;
 
