@@ -22,7 +22,7 @@ const CometCorsConfig COMET_CORS_DEFAULT_CONFIG = {
     .max_age = 600,
 };
 
-void add_header_if_value_not_empty(HttpcHeader* headers, const char* key, const char* value) {
+void add_header_if_value_not_empty(HttpcHeader** headers, const char* key, const char* value) {
     if (value[0] != '\0') {
         httpc_add_header_v(headers, key, value);
     }
