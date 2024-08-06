@@ -18,8 +18,8 @@ typedef struct {
     size_t num_params;
 } UrlParams;
 
-typedef HttpcRequest* (*middleware_func)(HttpcRequest*, UrlParams*);
-typedef HttpcResponse* (*handler_func)(HttpcRequest*, UrlParams*);
+typedef HttpcRequest* (*middleware_func)(void*, HttpcRequest*, UrlParams*);
+typedef HttpcResponse* (*handler_func)(void*, HttpcRequest*, UrlParams*);
 
 typedef struct {
     char* allowed_origins;
@@ -46,9 +46,10 @@ typedef struct {
     size_t num_routes;
     volatile bool running;
     CometCorsConfig cors_config;
+    void* state;
 } CometRouter;
 
-CometRouter* router_init(uint16_t port);
+CometRouter* router_init(uint16_t port, void* state);
 int router_add_route(CometRouter* router, const char* route, HttpcMethodType method, handler_func handler);
 void router_add_middleware(CometRouter* router, int route_index, middleware_func middleware);
 

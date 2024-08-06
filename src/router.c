@@ -64,7 +64,7 @@ HttpcResponse* default_not_allowed_handler(HttpcRequest* req) {
     return res;
 }
 
-CometRouter* router_init(uint16_t port) {
+CometRouter* router_init(uint16_t port, void* state) {
     CometRouter* router = malloc(sizeof(CometRouter));
     if (router == NULL) {
         log_message(LOG_ERROR, "Failed to allocate memory for router");
@@ -82,6 +82,7 @@ CometRouter* router_init(uint16_t port) {
     router->routes = NULL;
     router->running = false;
     router->cors_config = COMET_CORS_DEFAULT_CONFIG;
+    router->state = state;
     
     log_message(LOG_INFO, "Router has been initialized");
 
@@ -293,7 +294,7 @@ void router_start(CometRouter* router) {
             UrlParams params = {0};
             if (extract_url_params(route->route, req->url, &params)) {
                 for (size_t j = 0; j < route->num_middleware; j++) {
-                    req = route->middleware_chain[j](req, &params);
+                    req = route->middleware_chain[j](router->state, req, &params);
                 }
 
                 if (req->method == HTTPC_OPTIONS) {
@@ -312,7 +313,7 @@ void router_start(CometRouter* router) {
                         httpc_response_free(res);
                     }
 
-                    res = route->handler(req, &params);
+                    res = route->handler(router->state, req, &params);
                     if (res == NULL) {
                         res = httpc_response_new("Internal Server Error", 500);
                         httpc_response_set_body(res, "500 Internal Server Error", 26);
