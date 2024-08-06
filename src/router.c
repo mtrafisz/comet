@@ -369,6 +369,8 @@ void router_start(CometRouter* router) {
         }
 
         res = add_cors_headers(res, &router->cors_config);
+        // this implementation does not work with connection: keep-alive, so we add:
+        httpc_add_header_v(&res->headers, "Connection", "close");
 
         size_t response_len = 0;
         char* response_str = httpc_response_to_string(res, &response_len);
