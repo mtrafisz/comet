@@ -229,13 +229,44 @@ bool extract_url_params(const char *route_pattern_s, const char *actual_url_s, U
         return false;
     }
 
-    if (num_route_tokens != num_url_tokens) {
-        result = false;
-        goto cleanup;
-    }
+    bool wildcard = false;
 
-    for (size_t i = 0; i < num_route_tokens; i++) {
-        if (route_tokens[i][0] == '{' && route_tokens[i][strlen(route_tokens[i]) - 1] == '}') {
+    for (size_t i = 0; i < num_route_tokens && i < num_url_tokens; i++) {
+        if (strcmp(route_tokens[i], "*") == 0) {
+            for (size_t j = i; j < num_url_tokens; j++) {
+                wildcard = true;
+                char *param_name = strdup("wildcard");
+                char *param_value = strdup(url_tokens[j]);
+                for (size_t k = j + 1; k < num_url_tokens; k++) {
+                    char *new_param_value = malloc(strlen(param_value) + strlen(url_tokens[k]) + 1);
+                    if (new_param_value == NULL) {
+                        free(param_name);
+                        free(param_value);
+                        result = false;
+                        goto cleanup;
+                    }
+                    sprintf(new_param_value, "%s/%s", param_value, url_tokens[k]);
+                    free(param_value);
+                    param_value = new_param_value;
+                }
+
+                Param *new_params = realloc(params->params, (params->num_params + 1) * sizeof(Param));
+                if (new_params == NULL) {
+                    free(param_name);
+                    free(param_value);
+                    
+                    result = false;
+                    goto cleanup;
+                }
+
+                params->params = new_params;
+
+                params->params[params->num_params].key = param_name;
+                params->params[params->num_params].value = param_value;
+                params->num_params++;
+            }
+            break;
+        } else if (route_tokens[i][0] == '{' && route_tokens[i][strlen(route_tokens[i]) - 1] == '}') {
             char *param_name = strndup(route_tokens[i] + 1, strlen(route_tokens[i]) - 2);
             char *param_value = strdup(url_tokens[i]);
 
@@ -256,6 +287,10 @@ bool extract_url_params(const char *route_pattern_s, const char *actual_url_s, U
             result = false;
             goto cleanup;
         }
+    }
+
+    if (!wildcard && num_route_tokens != num_url_tokens) {
+        result = false;
     }
 
 cleanup:

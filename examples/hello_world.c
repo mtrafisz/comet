@@ -39,6 +39,25 @@ HttpcResponse* farewell_handler(void* _s, HttpcRequest* req, UrlParams* params) 
     return res;
 }
 
+HttpcResponse* wildcard_handler(void* _s, HttpcRequest* req, UrlParams* params) {
+    HttpcResponse* res = httpc_response_new("OK", 200);
+    char* wildcard = NULL;
+    for (size_t i = 0; i < params->num_params; i++) {
+        if (strcmp(params->params[i].key, "wildcard") == 0) {
+            wildcard = params->params[i].value;
+            break;
+        }
+    }
+    if (wildcard == NULL) {
+        httpc_response_set_body(res, "No wildcard provided", 20);
+    } else {
+        httpc_response_set_body(res, wildcard, strlen(wildcard));
+    }
+
+    httpc_add_header_v(&res->headers, "Content-Type", "text/plain");
+    return res;
+}
+
 HttpcRequest* logging_middleware(void* _s, HttpcRequest* req, UrlParams* _) {
     log_message(LOG_INFO, "Received %s request for %s", httpc_method_to_string(req->method), req->url);
     return req;
@@ -59,6 +78,10 @@ int main(void) {
     struct state s = {0, 0};
     
     router = router_init(8080, &s);
+    if (router == NULL) {
+        log_message(LOG_ERROR, "Failed to initialize router");
+        return 1;
+    }
 
     CometCorsConfig cors_config = COMET_CORS_DEFAULT_CONFIG;
     cors_config.allowed_methods = "GET";
@@ -66,7 +89,8 @@ int main(void) {
 
     router_add_route(router, "/", HTTPC_GET, hello_world_handler);
     router_add_route(router, "/hello/{name}", HTTPC_GET, greeting_handler);
-    router_add_route(router, "/{name}/bye", HTTPC_GET, farewell_handler);    
+    router_add_route(router, "/whoops/*", HTTPC_GET, wildcard_handler);
+    router_add_route(router, "/{name}/bye", HTTPC_GET, farewell_handler);
 
     for (size_t i = 0; i < router->num_routes; i++) {
         router_add_middleware(router, i, logging_middleware);
