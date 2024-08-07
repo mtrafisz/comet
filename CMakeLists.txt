@@ -18,7 +18,13 @@ set (COMET_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_include_directories (${PROJECT_NAME} PUBLIC ${COMET_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} httpc)
 
-option (COMET_BUILD_EXAMPLES "Build examples" OFF)
+option (COMET_FORCE_BUILD_WINDOWS "Force build for Windows" ON)
+
+if (WIN32 OR COMET_FORCE_BUILD_WINDOWS)
+    target_link_libraries (${PROJECT_NAME} ws2_32)
+endif ()
+
+option (COMET_BUILD_EXAMPLES "Build examples" ON)
 
 if (COMET_BUILD_EXAMPLES)
     file (GLOB EXAMPLES "examples/*.c")
@@ -26,5 +32,10 @@ if (COMET_BUILD_EXAMPLES)
         get_filename_component (EXAMPLE_NAME ${EXAMPLE} NAME_WE)
         add_executable (${EXAMPLE_NAME} ${EXAMPLE})
         target_link_libraries (${EXAMPLE_NAME} ${PROJECT_NAME})
+
+        if (WIN32 OR COMET_FORCE_BUILD_WINDOWS)
+            target_link_libraries (${PROJECT_NAME} ws2_32)
+        endif ()
+
     endforeach ()
 endif ()

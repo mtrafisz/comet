@@ -72,7 +72,7 @@ void sigint_handler(int sig) {
 }
 
 int main(void) {
-    comet_init(false, true);
+    comet_init(false, false);
     signal(SIGINT, sigint_handler);
 
     struct state s = {0, 0};

@@ -13,8 +13,9 @@ typedef struct {
 
 #ifdef _WIN32
 #include <winsock2.h>
-#define SOCKET_ERROR INVALID_SOCKET
+// #define SOCKET_ERROR INVALID_SOCKET
 typedef int ByteCount;
+typedef SOCKET NetSocket;
 #else
 #define SOCKET_ERROR -1
 #include <sys/types.h>

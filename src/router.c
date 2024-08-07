@@ -4,6 +4,7 @@
 
 #include <signal.h>
 #include <unistd.h>
+#include <string.h>
 
 void no_connection_timeout() {
 #ifndef _WIN32

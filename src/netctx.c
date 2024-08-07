@@ -8,11 +8,12 @@
 
 typedef SOCKET NetSocket;
 
-#define ERROR_TIMEOUT WSAETIMEDOUT
-#define ERROR_CANCELLED WSAEINTR
-#define ERROR_WOULD_BLOCK WSAEWOULDBLOCK
-#define ERROR_AGAIN WSAEAGAIN
+#define COMET_ERROR_TIMEOUT WSAETIMEDOUT
+#define COMET_ERROR_CANCELLED WSAEINTR
+#define COMET_ERROR_WOULD_BLOCK WSAEWOULDBLOCK
+#define COMET_ERROR_AGAIN WSAEWOULDBLOCK
 #define GET_ERROR_STR() strerror(WSAGetLastError())
+#define GET_ERROR_CODE() WSAGetLastError()
 #define CLOSE_SOCKET(s) closesocket(s)
 #define SHUTDOWN_SOCKET(s) shutdown(s, SD_BOTH)
 
@@ -26,21 +27,22 @@ typedef SOCKET NetSocket;
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <errno.h>
 
 typedef int NetSocket;
 
-#define ERROR_TIMEOUT ETIMEDOUT
-#define ERROR_CANCELLED EINTR
-#define ERROR_WOULD_BLOCK EWOULDBLOCK
-#define ERROR_AGAIN EAGAIN
+#define COMET_ERROR_TIMEOUT ETIMEDOUT
+#define COMET_ERROR_CANCELLED EINTR
+#define COMET_ERROR_WOULD_BLOCK EWOULDBLOCK
+#define COMET_ERROR_AGAIN EAGAIN
 #define GET_ERROR_STR() strerror(errno)
+#define GET_ERROR_CODE() errno
 #define CLOSE_SOCKET(s) close(s)
 #define SHUTDOWN_SOCKET(s) shutdown(s, SHUT_RDWR)
 
 #endif
 
 #include <stdlib.h>
-#include <errno.h>
 
 NetAddress netaddr_from_sockaddr(const struct sockaddr_in *addr) {
     NetAddress ret;
@@ -140,11 +142,13 @@ NetSocket netctx_get_next_connection(NetContext *ctx) {
     socklen_t remote_sockaddr_len = sizeof(remote_sockaddr);
     NetSocket remote_sockfd = accept(ctx->local_sockfd, (struct sockaddr *)&remote_sockaddr, &remote_sockaddr_len);
     if (remote_sockfd == SOCKET_ERROR) {
-        if (errno == ERROR_TIMEOUT || errno == ERROR_CANCELLED || errno == ERROR_WOULD_BLOCK || errno == ERROR_AGAIN) {
+        int err = GET_ERROR_CODE();
+
+        if (err == COMET_ERROR_TIMEOUT || err == COMET_ERROR_CANCELLED || err == COMET_ERROR_WOULD_BLOCK || err == COMET_ERROR_AGAIN) {
             return SOCKET_ERROR;
         }
 
-        log_message(LOG_ERROR, "Failed to accept connection: (%d) %s", errno, GET_ERROR_STR());
+        log_message(LOG_ERROR, "Failed to accept connection: (%d) %s", err, GET_ERROR_STR());
         return SOCKET_ERROR;
     }
 
