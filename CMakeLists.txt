@@ -18,7 +18,7 @@ set (COMET_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_include_directories (${PROJECT_NAME} PUBLIC ${COMET_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} httpc)
 
-option (COMET_FORCE_BUILD_WINDOWS "Force build for Windows" ON)
+option (COMET_FORCE_BUILD_WINDOWS "Force build for Windows" OFF)
 
 if (WIN32 OR COMET_FORCE_BUILD_WINDOWS)
     target_link_libraries (${PROJECT_NAME} ws2_32)

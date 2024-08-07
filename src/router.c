@@ -14,6 +14,10 @@ void no_connection_timeout() {
 #endif
 }
 
+#ifdef _WIN32
+#define strndup(s, size) strdup(s)
+#endif
+
 const CometCorsConfig COMET_CORS_DEFAULT_CONFIG = {
     .allowed_origins = "*",
     .allowed_methods = "GET, POST, PUT, DELETE, OPTIONS",
